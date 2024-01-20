@@ -1,0 +1,11 @@
+{
+  "extends": ["@tsconfig/recommended/tsconfig", "@tsconfig/strictest/tsconfig", "@tsconfig/node21/tsconfig.json"],
+  "compilerOptions": {
+    "types": ["node"],
+    "preserveConstEnums": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+  },
+  "include": ["src/**/*"],
+  "exclude": ["**/*.spec.ts", "node_modules"]
+}
