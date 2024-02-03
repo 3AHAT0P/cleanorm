@@ -6,7 +6,7 @@ export const getTableList = async (connection: pg.Pool): Promise<TableInfo[]> =>
   const queryStatements = [
     'SELECT t.table_name as "tableName"',
     'FROM information_schema.tables t',
-    'WHERE tc.table_schema = $1',
+    'WHERE t.table_schema = $1',
     'ORDER BY t.table_name',
   ];
 

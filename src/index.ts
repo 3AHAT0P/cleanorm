@@ -1,10 +1,12 @@
 import pg from 'pg';
 import 'reflect-metadata/lite';
 
-import { ConstraintInfo } from './@types';
+import { Metadata, TableMeta } from './@types';
 import { getConstraintsForTable } from './lib/queries/getConstraintsForTable';
 import { getTableList } from './lib/queries/getTableList';
 import { isNullOrUndefined } from './utils';
+import { getColumnsForTable } from './lib/queries/getColumnsForTable';
+import { createTable } from './lib/queries/createTable';
 
 const { Pool } = pg;
 
@@ -76,6 +78,48 @@ class PostgreClient {
       // Drop tables;
     }
   }
+
+  public async buildMetaForSchema(): Promise<Metadata> {
+    const tables = await getTableList(this._connection);
+
+    const result: Metadata = {
+      databaseName: this._config.database,
+      schemaName: 'public',
+      tables: {},
+    };
+
+    for (const table of tables) {
+      result.tables[table.tableName] = await this.buildMetaForTable(table.tableName);
+    }
+
+    return result;
+  }
+
+  public async buildMetaForTable(tableName: string): Promise<TableMeta> {
+    const columns = await getColumnsForTable(this._connection, tableName);
+    const constraints = await getConstraintsForTable(this._connection, tableName);
+
+    const tableMeta: TableMeta = {
+      name: tableName,
+      columns: {},
+      constraints: {},
+    };
+
+    for (const column of columns) {
+      tableMeta.columns[column.name] = column;
+    }
+
+    for (const constraint of constraints) {
+      tableMeta.constraints[constraint.name] = constraint;
+    }
+
+    return tableMeta;
+  }
+
+  public async debug() {
+    const tableName = '_cleanorm_internal';
+    console.log();
+  }
 }
 
 interface ModelDecoratorOptions {
@@ -136,18 +180,20 @@ const main = async () => {
     return result;
   };
 
-  // const client = new PostgreClient({
-  //   host: process.env['POSTGRES_HOST'] ?? throwError('Environment variable POSTGRES_HOST is required!'),
-  //   port: stringToNumber(process.env['POSTGRES_PORT']) ?? 5432,
-  //   database: process.env['POSTGRES_DB'] ?? throwError('Environment variable POSTGRES_DB is required!'),
-  //   user: process.env['POSTGRES_USER'] ?? throwError('Environment variable POSTGRES_USER is required!'),
-  //   password: process.env['POSTGRES_PASSWORD'] ?? throwError('Environment variable POSTGRES_PASSWORD is required!'),
-  // });
 
-  // await client.init();
+  const client = new PostgreClient({
+    host: process.env['POSTGRES_HOST'] ?? throwError('Environment variable POSTGRES_HOST is required!'),
+    port: stringToNumber(process.env['POSTGRES_PORT']) ?? 5432,
+    database: process.env['POSTGRES_DB'] ?? throwError('Environment variable POSTGRES_DB is required!'),
+    user: process.env['POSTGRES_USER'] ?? throwError('Environment variable POSTGRES_USER is required!'),
+    password: process.env['POSTGRES_PASSWORD'] ?? throwError('Environment variable POSTGRES_PASSWORD is required!'),
+  });
 
+  await client.init();
 
-  // await client.destroy();
+  await client.debug();
+
+  await client.destroy();
 };
 
 main();
