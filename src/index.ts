@@ -7,6 +7,7 @@ import { getTableList } from './lib/queries/getTableList';
 import { isNullOrUndefined } from './utils';
 import { getColumnsForTable } from './lib/queries/getColumnsForTable';
 import { createTable } from './lib/queries/createTable';
+import { select } from './lib/queries/select';
 
 const { Pool } = pg;
 
@@ -118,7 +119,31 @@ class PostgreClient {
 
   public async debug() {
     const tableName = '_cleanorm_internal';
-    console.log();
+    const tableMeta = await this.buildMetaForTable(tableName);
+    type X = {
+      id: string;
+      slug: string;
+      data: any;
+      createdAt: Date;
+      updatedAt: Date;
+    }
+    const fieldsToColumnsMap = new Map<keyof X, string>([
+      ['id', 'id'],
+      ['slug', 'slug'],
+      ['data', 'data'],
+      ['createdAt', 'createdAt'],
+      ['updatedAt', 'updatedAt'],
+    ]);
+    const result = await select<X>(
+      this._connection,
+      tableMeta,
+      ['id', 'data'],
+      fieldsToColumnsMap,
+      [],
+    );
+    console.log(result);
+
+    // SELECT * FROM public."_cleanorm_internal"
   }
 }
 

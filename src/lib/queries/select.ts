@@ -31,54 +31,77 @@ interface WhereRecord {
     [Op.in]?: unknown[];
     [Op.eq]?: unknown[];
   } | unknown;
-  [Op.or]?:
+  [Op.or]?: unknown;
 }
 
-export const select = async <TData extends object>(
+const buildSelectLine = (tableAlias: string, columns: string[]) => {
+  let selectLine = `SELECT ${tableAlias}."${columns[0]}"`;
+  for (let index = 1; index < columns.length; index++) {
+    selectLine += `, ${tableAlias}."${columns[index]}"`;
+  }
+
+  return selectLine;
+};
+
+export const select = async <TData extends object, const TKey extends keyof TData = keyof TData>(
   connection: pg.Pool,
   tableMeta: TableMeta,
-  modelMeta: ModelMeta<new () => TData>,
-  fieldList: '*' | string[],
+  fieldList: null | Array<TKey>,
+  fieldsToColumnsMap: Map<TKey, string>,
   whereClause: WhereExpression[],
-): Promise<TData[]> => {
+): Promise<Array<Pick<TData, TKey>>> => {
+  const schemaName = 'public';
+  const tableAlias = 'x';
 
-  const columns = [];
+  const columns: string[] = [];
 
-  if (fieldList === '*') {
-    for (const [columnName] of Object.values(modelMeta.fieldsToColumnsMap)) {
+  const usedColumnsToFieldsMap: Map<string, TKey> = new Map();
+
+  if (fieldList === null) {
+    for (const [fieldName, columnName] of fieldsToColumnsMap.entries()) {
       columns.push(columnName);
+      usedColumnsToFieldsMap.set(columnName, fieldName);
     }
   } else {
     for (const fieldName of fieldList) {
-      const columnName = modelMeta.fieldsToColumnsMap[fieldName];
-      if (!isNullOrUndefined(columnName)) columns.push(columnName);
+      const columnName = fieldsToColumnsMap.get(fieldName);
+      if (!isNullOrUndefined(columnName)) {
+        columns.push(columnName);
+        usedColumnsToFieldsMap.set(columnName, fieldName);
+      }
     }
   }
 
   const values: unknown[] = [];
-  let whereString = '';
+  // let whereString = '';
 
-  for (const { name, op, value } of whereClause) {
+  // for (const { name, op, value } of whereClause) {
 
-  }
+  // }
 
   const queryStatements = [
-    `SELECT ${columns.join(', ')}`,
-    `FROM ${tableMeta.name}`,
+    buildSelectLine(tableAlias, columns),
+    `FROM ${schemaName}."${tableMeta.name}" as ${tableAlias}`,
   ];
 
-  const queryResult: pg.QueryResult<Record<string, any>> = await connection.query({
-    text: queryStatements.join('\n'),
+  const queryOptions = {
+    text: queryStatements.join('\n') + ';',
     values,
-  });
+  };
 
-  const result: TData[] = [];
+  console.log(queryOptions.text,  queryOptions.values);
+
+  const queryResult: pg.QueryResult<Record<string, any>> = await connection.query(queryOptions);
+
+  const result: Array<Pick<TData, TKey>> = [];
 
   for (const row of queryResult.rows) {
-    const data = new modelMeta.class();
-
-    result.push(data);
+    const data: Partial<Pick<TData, TKey>> = {};
+    for (const [columnName, fieldName] of usedColumnsToFieldsMap.entries()) {
+      data[fieldName] = row[columnName];
+    }
+    result.push(<Pick<TData, TKey>>data);
   }
 
-  return queryResult.rows;
+  return result;
 };
